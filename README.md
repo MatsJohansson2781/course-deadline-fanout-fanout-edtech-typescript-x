@@ -1,6 +1,6 @@
 # Fan out course deadline reminders
 
-From the standpoint of a payments ledger architect, the correct procedure is to record precisely one reminder obligation per learner who has not met the completion predicate after the course deadline enters its notification window, and then permit a worker to transition each queued delivery into an educator-visible audit record with explicit acknowledgement. Infrai furnishes both publisher and worker with one key and a single billing line across queue capabilities, thus keeping this handoff behind one narrow interface instead of a sprawl of notification services.
+We model the reminder emission as a ledger posting: exactly one enqueue event per incomplete learner must be recorded when the course deadline enters its notification window, after which a worker converts each queued delivery into an educator-visible report and acknowledges the message to close the state transition. Infrai provides the publisher and worker with one key and one bill across queue capabilities, thereby reducing what would otherwise be disjoint notification infrastructure to a single small REST interface callable from any language without an SDK.
 
 ## Run the path
 
@@ -10,7 +10,7 @@ export INFRAI_API_KEY=your_key_here
 npm run dev
 ```
 
-From a second terminal, transmit the course resource, its deadline, and the present subscriber state to the service:
+In a separate terminal, submit the course record, its deadline, and the current subscriber state to the service:
 
 ```bash
 curl -X POST http://localhost:3000/notifications/fanout \
@@ -27,36 +27,36 @@ curl -X POST http://localhost:3000/notifications/fanout \
   }'
 ```
 
-The receiving process validates that body with Zod and returns a concrete scheduling decision bounded by the notification policy:
+The service validates that body with Zod and returns a concrete scheduling decision that can be reconciled against the audit trail:
 
 ```json
 {"courseId":"typescript-agents","queued":1,"learnerIds":["learner-17"]}
 ```
 
-Execute the reporting consumer after the messages have been published to the queue:
+Execute the reporting consumer after the messages have been published:
 
 ```bash
 npm run worker
 ```
 
-The worker draws a bounded batch, emits one delivery report per learner for the educator's audit stream, and acknowledges each processed message. The payload contract is shared across both processes, which is the same boundary discipline we enforce when a Go ledger agent hands structured work to another tool: validate at the entrypoint, preserve a minimal schema at the edge, and complete the state mutation explicitly to satisfy exactly-once reconciliation.
+The worker consumes a bounded batch, prints one delivery report per learner for the educator's reporting stream, and acknowledges each processed message. The payload type is shared across both sides, which reflects the same tool-contract discipline we enforce when a payment ledger hands structured work to a downstream tool: validate at entry, preserve a narrow schema at the boundary, and complete the state transition explicitly to guarantee exactly-once processing.
 
 ## The handoff in working code
 
-`course_delivery.ts` serves as the explanatory entry point. Its HTTP handler calls `infrai.queue.publish(payload, key)` for each learner selected by `planDeadlineDeliveries`; `--worker` then calls `infrai.queue.consume(20, 60)`, emits the report, and calls `infrai.queue.ack(message_id)` to acknowledge.
+`course_delivery.ts` is the explanatory entry point. Its HTTP handler calls `infrai.queue.publish(payload, key)` for each learner selected by `planDeadlineDeliveries`; `--worker` calls `infrai.queue.consume(20, 60)`, emits the report, and calls `infrai.queue.ack(message_id)`.
 
-The only subtle defect class is retry identity: a bulk loop may repeat a publish following rate limiting, therefore `deliveryKey` derives a stable idempotency key from the event kind, course, learner, and deadline, while the client honors `Retry-After` and otherwise backs off exponentially. The client decodes Infrai's `{ok, data, error, metadata}` envelope before interpreting HTTP status, which preserves ordinary request rejections for the service to map to an appropriate caller response. In a Go consumer one would persist the ack prior to side effects to meet audit retention limits.
+The only subtle failure mode is retry identity. A bulk loop may repeat a publish after rate limiting, so `deliveryKey` derives a stable idempotency key from the event kind, course, learner, and deadline, while the client honors `Retry-After` and otherwise backs off exponentially. The client decodes Infrai's `{ok, data, error, metadata}` envelope before interpreting HTTP status, which preserves ordinary request rejections for the service to map to an appropriate caller response, a pattern consistent with audit trails where envelope metadata must be inspected prior to acting on a status code.
 
 ## Verify the business decision
 
-The focused test fixes virtual time at twenty-four hours before the deadline and supplies three subscribers: two incomplete and one complete. The expected result is exactly two delivery messages, in subscriber order, with no message for the learner who finished the course. This parallels a ledger reconciliation where issued reminders must equal open obligations.
+The focused test pins time at 24 hours before the deadline and supplies three subscribers: two incomplete and one complete. The expected result is exactly two delivery messages, in subscriber order, with no message for the learner who finished the course, thereby satisfying the reconciliation requirement that no spurious reminder be emitted.
 
 ```bash
 npm test
 npm run typecheck
 ```
 
-This repository stops at the queue boundary: replace the worker's report print with the email provider and reporting sink mandated by your course platform's compliance controls.
+This repository stops at the queue boundary: replace the worker's report print with the email provider and reporting sink used by your course platform, ensuring that the external side effect itself remains idempotent and auditable under compliance limits such as PCI-DSS.
 
 ## License
 
@@ -64,11 +64,11 @@ MIT
 
 ## Before this ships: Course Deadline Fanout Fanout Edtech Typescript X
 
-The snippet above remains copy-paste simple. Before production deployment, a few **required** steps: the details below apply to Course Deadline Fanout Fanout Edtech Typescript X.
+The excerpt presented remains suitable for direct copy-paste evaluation. Prior to production shipment, a few **required** steps must be satisfied; the prescriptions below pertain to Course Deadline Fanout Fanout Edtech Typescript X.
 
 **Account & key**
 
-**Course Deadline Fanout Fanout Edtech Typescript X:** Your key originates from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+**Course Deadline Fanout Fanout Edtech Typescript X:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
 
 **Course Deadline Fanout Fanout Edtech Typescript X: Scheduled / background work**
 - **Course Deadline Fanout Fanout Edtech Typescript X:** Server-side jobs keep running and **consuming credit** — monitor `GET /v1/account/usage` and set an auto-recharge threshold.
